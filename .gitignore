@@ -1,0 +1,36 @@
+# Arduino build files
+build/
+.build/
+*.elf
+*.bin
+*.map
+
+# macOS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# VSCode
+.vscode/
+*.code-workspace
+
+# Temporary files
+*.tmp
+*.temp
+*~
+
+# Logs
+*.log
+
+# IDE files
+*.swp
+*.swo
+*~
+
+# Arduino IDE
+*.ino.bak
+*.ino.old 
