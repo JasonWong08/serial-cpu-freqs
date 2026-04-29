@@ -1,5 +1,5 @@
 {
   "version": "1.0.1",
-  "url": "https://github.com/JasonWong08/serial-cpu-freqs/releases/download/v1.0.1/Serial_CPU_Freqs.ino.bin",
+  "url": "https://cdn.jsdelivr.net/gh/JasonWong08/serial-cpu-freqs@main/firmware/Serial_CPU_Freqs.ino.bin",
   "changelog": "Full Changelog: Test the OTA function."
 }

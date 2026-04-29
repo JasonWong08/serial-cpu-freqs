@@ -34,3 +34,6 @@ Thumbs.db
 # Arduino IDE
 *.ino.bak
 *.ino.old 
+
+#Cursor
+.cursor/
