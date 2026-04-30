@@ -1,3 +1,5 @@
-将 Arduino 编译输出的 Serial_CPU_Freqs.ino.bin（或重命名为与本仓库 version.json 中 url 一致）放到本目录，
-提交并推送到 GitHub 后，jsDelivr 即可通过 version.json 中的 cdn.jsdelivr.net/gh/... URL 分发固件。
-勿仅上传到 GitHub Release 而不提交到仓库——否则设备无法用 jsDelivr 拉取。
+在本目录放置编译得到的 Serial_CPU_Freqs.ino.bin，推送到仓库 main 后：
+- 推荐 OTA 使用 GitHub Raw（version.json 中 url）：raw.githubusercontent.com/.../firmware/Serial_CPU_Freqs.ino.bin
+  ESP32 的 HTTPUpdate 需要响应带 Content-Length；jsDelivr CDN 常为分块传输且无长度，易出现错误 -101。
+
+勿仅上传到 GitHub Release、不把 .bin 提交进仓库——设备侧已优先 Raw / 备选 jsDelivr。
