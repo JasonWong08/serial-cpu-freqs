@@ -10,8 +10,18 @@
 #include <WiFiClientSecure.h>
 #include <cstring>
 
-// 独立于库内默认全局 httpUpdate（默认 ~8s 超时易导致大镜像失败）：OTA 用大超时（毫秒）
-static HTTPUpdate otaHttps(180000);
+// 与 ESP32S3_OTA_Hello 一致：使用库内全局 httpUpdate（参见 HTTPUpdate.h）
+
+// 与 ESP32S3_OTA_Hello 一致：公网 Demo 用 setInsecure（生产环境应恢复 CA bundle + 校验）
+static void setupSecureClientInsecureDemo(WiFiClientSecure& secureClient) {
+  secureClient.setInsecure();
+}
+
+static void httpUpdateProgress(int current, int total) {
+  if (total > 0) {
+    Serial.printf("OTA progress: %d / %d\n", current, total);
+  }
+}
 
 // const char* ssid = "CAT-2.4G";
 // const char* password = "qwertyuiop";
@@ -21,8 +31,8 @@ const char* password = "12341234";
 
 const String current_version = "1.0.0";
 
-#define OTA_MANIFEST_URL_PRIMARY \
-  "https://cdn.jsdelivr.net/gh/JasonWong08/serial-cpu-freqs@main/version.json"
+// #define OTA_MANIFEST_URL_PRIMARY \
+//   "https://cdn.jsdelivr.net/gh/JasonWong08/serial-cpu-freqs@main/version.json"
 
 // GitHub Raw 备选（cdn 偶发抖动时可通）
 #define OTA_MANIFEST_URL_FALLBACK \
@@ -30,30 +40,30 @@ const String current_version = "1.0.0";
 
 // Release 资产须用 github.com/.../releases/download/…（raw.githubusercontent.com 只服务仓库树内路径，对 releases/download 会 404）。
 // 仓库 firmware/（jsdelivr @main）：HTTPUpdate 需 Content-Length，jsDelivr 常 chunked 导致 -101，仅作备选。
-#define OTA_FIRMWARE_URL_RELEASE \
-  "https://github.com/JasonWong08/serial-cpu-freqs/releases/download/v1.1.0/serial-cpu-freqs.ino.bin"
+// #define OTA_FIRMWARE_URL_RELEASE \
+//   "https://github.com/JasonWong08/serial-cpu-freqs/releases/download/v1.1.0/serial-cpu-freqs.ino.bin"
 
-#define OTA_FIRMWARE_URL_JSDELIVR \
-  "https://cdn.jsdelivr.net/gh/JasonWong08/serial-cpu-freqs@main/firmware/Serial_CPU_Freqs.ino.bin"
+// #define OTA_FIRMWARE_URL_JSDELIVR \
+//   "https://cdn.jsdelivr.net/gh/JasonWong08/serial-cpu-freqs@main/firmware/Serial_CPU_Freqs.ino.bin"
 
 // int cpufreqs = 240;
 
-static void syncNetworkTime() {
-  configTime(0, 0, "pool.ntp.org", "time.google.com", "ntp.aliyun.com");
-  Serial.print("正在同步 NTP 时间");
-  for (int i = 0; i < 60; i++) {
-    time_t now = time(nullptr);
-    if (now > 1609459200) {
-      Serial.println(" 完成");
-      Serial.printf("当前 UTC 时间戳: %lld\n", (long long)now);
-      return;
-    }
-    delay(500);
-    Serial.print(".");
-  }
-  Serial.println();
-  Serial.println("警告: NTP 未同步成功");
-}
+// static void syncNetworkTime() {
+//   configTime(0, 0, "pool.ntp.org", "time.google.com", "ntp.aliyun.com");
+//   Serial.print("正在同步 NTP 时间");
+//   for (int i = 0; i < 60; i++) {
+//     time_t now = time(nullptr);
+//     if (now > 1609459200) {
+//       Serial.println(" 完成");
+//       Serial.printf("当前 UTC 时间戳: %lld\n", (long long)now);
+//       return;
+//     }
+//     delay(500);
+//     Serial.print(".");
+//   }
+//   Serial.println();
+//   Serial.println("警告: NTP 未同步成功");
+// }
 
 void setup() {
   Serial.begin(115200);
@@ -68,6 +78,7 @@ void setup() {
   delay(500);
 
   
+  WiFi.mode(WIFI_STA);
   WiFi.begin(ssid, password);
   while (WiFi.status() != WL_CONNECTED) { delay(500); Serial.print("."); }
   Serial.println("\nWiFi已连接");
@@ -76,10 +87,11 @@ void setup() {
   if (WiFi.hostByName("raw.githubusercontent.com", ghIp))
     Serial.printf("DNS raw.githubusercontent.com -> %s\n", ghIp.toString().c_str());
 
-  syncNetworkTime();
+  // syncNetworkTime();
 }
 
-// Merged PEM: DigiCert G2 / ISRG X1 / GlobalSign R3 / USERTrust RSA (jsDelivr/GitHub POPs)
+// Merged PEM: DigiCert G2 / ISRG X1 / GlobalSign R3 / USERTrust RSA（已停用，与 Hello 对齐改为 setInsecure）
+#if 0
 const char* rootCACertificate = \
 "-----BEGIN CERTIFICATE-----\n" \
 "MIIDjjCCAnagAwIBAgIQAzrx5qcRqaC7KGSxHQn65TANBgkqhkiG9w0BAQsFADBh\n" \
@@ -184,21 +196,23 @@ const char* rootCACertificate = \
 "sAvgnEzDHNb842m1R0aBL6KCq9NjRHDEjf8tM7qtj3u1cIiuPhnPQCjY/MiQu12ZIvVS5ljFH4gx\n" \
 "Q+6IHdfGjjxDah2nGN59PRbxYvnKkKj9\n" \
 "-----END CERTIFICATE-----\n";
-
+#endif
 
 void performOTA() {
   if (WiFi.status() != WL_CONNECTED) return;
 
   WiFiClientSecure client;
-  client.setCACert(rootCACertificate);
+  setupSecureClientInsecureDemo(client);
+  // client.setCACert(rootCACertificate);
   client.setTimeout(25);
 
   HTTPClient http;
   http.setTimeout(25000);
-  http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
+  // http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
+  http.setFollowRedirects(HTTPC_FORCE_FOLLOW_REDIRECTS);
 
   Serial.println("正在检查更新...");
-  const char* manifestUrls[] = { OTA_MANIFEST_URL_PRIMARY, OTA_MANIFEST_URL_FALLBACK };
+  const char* manifestUrls[] = { OTA_MANIFEST_URL_FALLBACK };
   int httpCode = -1;
   for (size_t i = 0; i < sizeof(manifestUrls) / sizeof(manifestUrls[0]); i++) {
     if (!http.begin(client, manifestUrls[i])) continue;
@@ -228,64 +242,82 @@ void performOTA() {
     String binUrl;
     if (download_url && strlen(download_url) > 0) {
       binUrl = download_url;
-      const char kRawPref[] = "https://raw.githubusercontent.com/";
-      if (binUrl.startsWith(kRawPref) &&
-          binUrl.indexOf("/releases/download/") >= 0) {
-        size_t z = strlen(kRawPref);
-        int s1 = binUrl.indexOf('/', z);
-        int s2 = (s1 > 0) ? binUrl.indexOf('/', s1 + 1) : -1;
-        if (s1 > 0 && s2 > s1) {
-          String user = binUrl.substring(static_cast<unsigned>(z),
-                                         static_cast<unsigned>(s1));
-          String repo = binUrl.substring(static_cast<unsigned>(s1 + 1),
-                                         static_cast<unsigned>(s2));
-          String tail = binUrl.substring(static_cast<unsigned>(s2 + 1));
-          binUrl = String("https://github.com/") + user + "/" + repo + "/" + tail;
-          Serial.println(
-              "已把 raw/releases/download 更正为 github.com Releases 下载链");
-        }
-      }
-    } else {
-      binUrl = OTA_FIRMWARE_URL_RELEASE;
-    }
+      // const char kRawPref[] = "https://raw.githubusercontent.com/";
+      // if (binUrl.startsWith(kRawPref) &&
+      //     binUrl.indexOf("/releases/download/") >= 0) {
+      //   size_t z = strlen(kRawPref);
+      //   int s1 = binUrl.indexOf('/', z);
+      //   int s2 = (s1 > 0) ? binUrl.indexOf('/', s1 + 1) : -1;
+      //   if (s1 > 0 && s2 > s1) {
+      //     String user = binUrl.substring(static_cast<unsigned>(z),
+      //                                    static_cast<unsigned>(s1));
+      //     String repo = binUrl.substring(static_cast<unsigned>(s1 + 1),
+      //                                    static_cast<unsigned>(s2));
+      //     String tail = binUrl.substring(static_cast<unsigned>(s2 + 1));
+      //     binUrl = String("https://github.com/") + user + "/" + repo + "/" + tail;
+      //     Serial.println(
+      //         "已把 raw/releases/download 更正为 github.com Releases 下载链");
+      //   }
+      // }
+    } 
+    // else {
+    //   binUrl = OTA_FIRMWARE_URL_RELEASE;
+    // }
 
     if (String(new_version) != current_version) {
       Serial.printf("发现新版本: %s (当前: %s)\n", new_version, current_version.c_str());
       Serial.println("准备开始 OTA 更新...");
       http.end();
 
-      const char* try1 = binUrl.c_str();
-      const char* try2 =
-          (strcmp(try1, OTA_FIRMWARE_URL_RELEASE) != 0) ? OTA_FIRMWARE_URL_RELEASE : nullptr;
-      const char* try3 =
-          (strcmp(try1, OTA_FIRMWARE_URL_JSDELIVR) != 0) ? OTA_FIRMWARE_URL_JSDELIVR : nullptr;
-
-      const char* urls[3];
-      size_t nu = 0;
-      urls[nu++] = try1;
-      if (try2) urls[nu++] = try2;
-      if (try3 && (!try2 || strcmp(try2, try3) != 0)) urls[nu++] = try3;
-
-      t_httpUpdate_return ret = HTTP_UPDATE_FAILED;
-      for (size_t ui = 0; ui < nu; ui++) {
-        Serial.printf("实际下载 #%u: %s\n", (unsigned)(ui + 1), urls[ui]);
-        WiFiClientSecure otaClient;
-        otaClient.setCACert(rootCACertificate);
-        otaClient.setTimeout(120);
-        otaClient.setHandshakeTimeout(60);
-        otaHttps.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
-        otaHttps.setLedPin(2);
-        ret = otaHttps.update(otaClient, String(urls[ui]));
-        if (ret == HTTP_UPDATE_OK) break;
-        int last = otaHttps.getLastError();
-        Serial.printf("(失败 %d) %s\n", last, otaHttps.getLastErrorString().c_str());
-        if (last != -101) break;
+      Serial.printf("实际下载: %s\n", binUrl.c_str());
+      WiFiClientSecure otaClient;
+      setupSecureClientInsecureDemo(otaClient);
+      // otaClient.setCACert(rootCACertificate);
+      otaClient.setTimeout(120);
+      otaClient.setHandshakeTimeout(60);
+      // httpUpdate.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
+      httpUpdate.setFollowRedirects(HTTPC_FORCE_FOLLOW_REDIRECTS);
+      httpUpdate.onProgress(httpUpdateProgress);
+      httpUpdate.rebootOnUpdate(true);
+      httpUpdate.setLedPin(2);
+      t_httpUpdate_return ret = httpUpdate.update(otaClient, String(binUrl.c_str()));
+      if (ret != HTTP_UPDATE_OK) {
+        int last = httpUpdate.getLastError();
+        Serial.printf("(失败 %d) %s\n", last, httpUpdate.getLastErrorString().c_str());
       }
+
+      // const char* try1 = binUrl.c_str();
+      // const char* try2 =
+      //     (strcmp(try1, OTA_FIRMWARE_URL_RELEASE) != 0) ? OTA_FIRMWARE_URL_RELEASE : nullptr;
+      // const char* try3 =
+      //     (strcmp(try1, OTA_FIRMWARE_URL_JSDELIVR) != 0) ? OTA_FIRMWARE_URL_JSDELIVR : nullptr;
+
+      // const char* urls[3];
+      // size_t nu = 0;
+      // urls[nu++] = try1;
+      // if (try2) urls[nu++] = try2;
+      // if (try3 && (!try2 || strcmp(try2, try3) != 0)) urls[nu++] = try3;
+
+      // t_httpUpdate_return ret = HTTP_UPDATE_FAILED;
+      // for (size_t ui = 0; ui < nu; ui++) {
+      //   Serial.printf("实际下载 #%u: %s\n", (unsigned)(ui + 1), urls[ui]);
+      //   WiFiClientSecure otaClient;
+      //   otaClient.setCACert(rootCACertificate);
+      //   otaClient.setTimeout(120);
+      //   otaClient.setHandshakeTimeout(60);
+      //   httpUpdate.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
+      //   httpUpdate.setLedPin(2);
+      //   ret = httpUpdate.update(otaClient, String(urls[ui]));
+      //   if (ret == HTTP_UPDATE_OK) break;
+      //   int last = httpUpdate.getLastError();
+      //   Serial.printf("(失败 %d) %s\n", last, httpUpdate.getLastErrorString().c_str());
+      //   if (last != -101) break;
+      // }
 
       switch (ret) {
         case HTTP_UPDATE_FAILED:
           Serial.printf("更新失败 (%d): %s\n",
-                        otaHttps.getLastError(), otaHttps.getLastErrorString().c_str());
+                        httpUpdate.getLastError(), httpUpdate.getLastErrorString().c_str());
           break;
         case HTTP_UPDATE_NO_UPDATES:
           Serial.println("没有检测到更新");
