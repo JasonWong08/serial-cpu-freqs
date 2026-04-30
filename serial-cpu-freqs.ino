@@ -13,8 +13,11 @@
 // 独立于库内默认全局 httpUpdate（默认 ~8s 超时易导致大镜像失败）：OTA 用大超时（毫秒）
 static HTTPUpdate otaHttps(180000);
 
-const char* ssid = "CAT-2.4G";
-const char* password = "qwertyuiop";
+// const char* ssid = "CAT-2.4G";
+// const char* password = "qwertyuiop";
+
+const char* ssid = "BzLv15ProMax";
+const char* password = "12341234";
 
 const String current_version = "1.0.0";
 
@@ -26,12 +29,15 @@ const String current_version = "1.0.0";
   "https://raw.githubusercontent.com/JasonWong08/serial-cpu-freqs/main/version.json"
 
 // 固件须放在仓库 firmware/ 并已 push。HTTPUpdate 必须有 Content-Length；jsDelivr 常 chunked 导致 -101。
+//  "https://raw.githubusercontent.com/JasonWong08/serial-cpu-freqs/main/firmware/Serial_CPU_Freqs.ino.bin"
 #define OTA_FIRMWARE_URL_RAWGH \
-  "https://raw.githubusercontent.com/JasonWong08/serial-cpu-freqs/main/firmware/Serial_CPU_Freqs.ino.bin"
-#define OTA_FIRMWARE_URL_JSDELIVR \
-  "https://cdn.jsdelivr.net/gh/JasonWong08/serial-cpu-freqs@main/firmware/Serial_CPU_Freqs.ino.bin"
+  "https://raw.githubusercontent.com/JasonWong08/serial-cpu-freqs/releases/download/v1.1.0/serial-cpu-freqs.ino.bin"  
 
-int cpufreqs = 240;
+// "https://cdn.jsdelivr.net/gh/JasonWong08/serial-cpu-freqs@main/firmware/Serial_CPU_Freqs.ino.bin"
+#define OTA_FIRMWARE_URL_JSDELIVR \
+  "https://cdn.jsdelivr.net/gh/JasonWong08/serial-cpu-freqs/releases/download/v1.1.0/serial-cpu-freqs.ino.bin"
+
+// int cpufreqs = 240;
 
 static void syncNetworkTime() {
   configTime(0, 0, "pool.ntp.org", "time.google.com", "ntp.aliyun.com");
@@ -56,28 +62,13 @@ void setup() {
   Serial.println("\n Starting...\n");
   Serial.flush();
 
-  Serial.printf("\n------- Trying CPU Freq = %d ---------\n", cpufreqs);
-  Serial.flush();
-  setCpuFrequencyMhz(cpufreqs);
-
-  uint32_t Freq = getCpuFrequencyMhz();
-  Serial.print("CPU Freq = ");
-  Serial.print(Freq);
-  Serial.println(" MHz");
-  Freq = getXtalFrequencyMhz();
-  Serial.print("XTAL Freq = ");
-  Serial.print(Freq);
-  Serial.println(" MHz");
-  Freq = getApbFrequency();
-  Serial.print("APB Freq = ");
-  Serial.print(Freq);
-  Serial.println(" Hz");
+  Serial.printf("\n------- Trying OTA 00 ---------\n");
+ 
+  
+  Serial.println("Hello earth!");
   delay(500);
 
-  Serial.println("\n-------------------\n");
-  Serial.println("End of testing...");
-  Serial.println("\n-------------------\n");
-
+  
   WiFi.begin(ssid, password);
   while (WiFi.status() != WL_CONNECTED) { delay(500); Serial.print("."); }
   Serial.println("\nWiFi已连接");
