@@ -28,14 +28,13 @@ const String current_version = "1.0.0";
 #define OTA_MANIFEST_URL_FALLBACK \
   "https://raw.githubusercontent.com/JasonWong08/serial-cpu-freqs/main/version.json"
 
-// 固件须放在仓库 firmware/ 并已 push。HTTPUpdate 必须有 Content-Length；jsDelivr 常 chunked 导致 -101。
-//  "https://raw.githubusercontent.com/JasonWong08/serial-cpu-freqs/main/firmware/Serial_CPU_Freqs.ino.bin"
-#define OTA_FIRMWARE_URL_RAWGH \
-  "https://raw.githubusercontent.com/JasonWong08/serial-cpu-freqs/releases/download/v1.1.0/serial-cpu-freqs.ino.bin"  
+// Release 资产须用 github.com/.../releases/download/…（raw.githubusercontent.com 只服务仓库树内路径，对 releases/download 会 404）。
+// 仓库 firmware/（jsdelivr @main）：HTTPUpdate 需 Content-Length，jsDelivr 常 chunked 导致 -101，仅作备选。
+#define OTA_FIRMWARE_URL_RELEASE \
+  "https://github.com/JasonWong08/serial-cpu-freqs/releases/download/v1.1.0/serial-cpu-freqs.ino.bin"
 
-// "https://cdn.jsdelivr.net/gh/JasonWong08/serial-cpu-freqs@main/firmware/Serial_CPU_Freqs.ino.bin"
 #define OTA_FIRMWARE_URL_JSDELIVR \
-  "https://cdn.jsdelivr.net/gh/JasonWong08/serial-cpu-freqs/releases/download/v1.1.0/serial-cpu-freqs.ino.bin"
+  "https://cdn.jsdelivr.net/gh/JasonWong08/serial-cpu-freqs@main/firmware/Serial_CPU_Freqs.ino.bin"
 
 // int cpufreqs = 240;
 
@@ -225,20 +224,29 @@ void performOTA() {
     const char* new_version = doc["version"];
     const char* download_url = doc["url"];
 
-    // manifest 若为 Release 直链：改用 GitHub Raw（一般有 Content-Length）；jsDelivr 常 chunked 触发 -101
+    // Raw 域名不能加载 Release 资源（会 404）；若 manifest 误写 raw.../releases/download/...则改为 github.com
     String binUrl;
-    if (download_url &&
-        strstr(download_url, "github.com") &&
-        strstr(download_url, "releases/download")) {
-      binUrl = OTA_FIRMWARE_URL_RAWGH;
-      Serial.println(
-          "manifest 中为 GitHub Release 链接，改用 Raw 固件 URL（避免 jsDelivr 无 Content-Length）；");
-      Serial.println(
-          "请确认 main 已包含 firmware/Serial_CPU_Freqs.ino.bin 并已 push。");
-    } else if (download_url && strlen(download_url) > 0) {
+    if (download_url && strlen(download_url) > 0) {
       binUrl = download_url;
+      const char kRawPref[] = "https://raw.githubusercontent.com/";
+      if (binUrl.startsWith(kRawPref) &&
+          binUrl.indexOf("/releases/download/") >= 0) {
+        size_t z = strlen(kRawPref);
+        int s1 = binUrl.indexOf('/', z);
+        int s2 = (s1 > 0) ? binUrl.indexOf('/', s1 + 1) : -1;
+        if (s1 > 0 && s2 > s1) {
+          String user = binUrl.substring(static_cast<unsigned>(z),
+                                         static_cast<unsigned>(s1));
+          String repo = binUrl.substring(static_cast<unsigned>(s1 + 1),
+                                         static_cast<unsigned>(s2));
+          String tail = binUrl.substring(static_cast<unsigned>(s2 + 1));
+          binUrl = String("https://github.com/") + user + "/" + repo + "/" + tail;
+          Serial.println(
+              "已把 raw/releases/download 更正为 github.com Releases 下载链");
+        }
+      }
     } else {
-      binUrl = OTA_FIRMWARE_URL_RAWGH;
+      binUrl = OTA_FIRMWARE_URL_RELEASE;
     }
 
     if (String(new_version) != current_version) {
@@ -248,7 +256,7 @@ void performOTA() {
 
       const char* try1 = binUrl.c_str();
       const char* try2 =
-          (strcmp(try1, OTA_FIRMWARE_URL_RAWGH) != 0) ? OTA_FIRMWARE_URL_RAWGH : nullptr;
+          (strcmp(try1, OTA_FIRMWARE_URL_RELEASE) != 0) ? OTA_FIRMWARE_URL_RELEASE : nullptr;
       const char* try3 =
           (strcmp(try1, OTA_FIRMWARE_URL_JSDELIVR) != 0) ? OTA_FIRMWARE_URL_JSDELIVR : nullptr;
 
